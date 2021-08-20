@@ -1,0 +1,7 @@
+\tc\lib\C0L install itest
+install
+
+\tc\lib\graphics.lib \tc\lib\emu.lib \tc\lib\mathL.lib \tc\lib\CL.lib
+/M;
+
+

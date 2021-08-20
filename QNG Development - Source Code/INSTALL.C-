@@ -1,0 +1,221 @@
+/************* QNG INSTALL PROGRAM **********************************/
+
+#include <conio.h>						/* console i/o */
+#include <stdio.h>						/* file i/o */
+#include <string.h>
+#include <stdlib.h>
+#include <alloc.h>						/* malloc, realloc */
+#include <ctype.h>						/* isdigit, etc */
+#include <math.h>						/* atof */
+#include <dos.h>						/* getdate */
+#include <dir.h>						/* findfirst, etc */
+#include <io.h>							/* getftime */
+#include <fcntl.h>						/* file handle i/o */
+#include <sys\stat.h>
+#define TRUE 1
+#define FALSE 0
+
+/* options and modes */
+
+/* Variables for screen geometry */
+int xcor=16;							/* x, y of U.L. corner */
+int ycor=6;
+int xwide=48;							/* width & height */
+int yhigh=13;
+
+/* variables for file searching & deleting */
+char subdir[41];						/* path to subdirec */
+char file1[91];							/* full pathnames of compare-files */
+char file2[91];
+char ch;
+struct ftime timdat;					/* time/date of file */
+#define BUFSIZE 30000					/* for copying */
+char *buff;
+
+/* general variables */
+
+main()
+{
+int ec, i, j, n, ss;
+int ssi, ssj;
+char *sp;
+
+/* ask what directory they want to use for QNG software */
+box(xcor, ycor, xwide, yhigh);
+gotoxy(xcor+11, ycor+2);
+printf("QNG software installation");
+gotoxy(xcor+5, ycor+4);
+printf("What subdirectory do you want to use");
+gotoxy(xcor+12, ycor+5);
+printf("for the QNG software?");
+getresp(xcor+7, ycor+8, 31, subdir, "\\QNGDRV");
+clrscr();
+}										/* end of "main" */
+
+/************* GETRESP -- get a response string from user ************/
+getresp(xpos, ypos, width, str, defstr)
+int xpos, ypos;							/* where to put the field */
+int width;
+char *str;								/* response str */
+char *defstr;							/* default str, to start out w */
+{
+int ch, x, nchars=0, curs=0;
+int len;
+int clearf;								/* if >0 clear field before repainting */
+int insmode =0;							/* insert mode */
+gotoxy(xpos, ypos);
+textbackground(LIGHTGRAY);
+textcolor(BLACK);
+for (x=0; x<width; x++)
+	cprintf(" ");
+gotoxy(xpos, ypos);
+strcpy(str, defstr);       				/* initial paint of default str */
+cprintf("%s",str);
+curs = strlen(str);
+while (1==1) {							/* loop to get chars & edit */
+	len = strlen(str);                  /* want curr str length */
+	clearf =0;
+	ch = getch();
+	if (ch == 0)
+		ch = 0x100 + getch();
+	if (ch == 0x14B) {					/* left arrow */
+		if (curs > 0)
+			curs--;
+		}
+	if (ch == 0x14D) {					/* right arrow */
+		if (curs < len)
+			curs++;
+		}
+	if (ch == 0x147) {					/* Home */
+		curs = 0;  }
+	if (ch == 0x14F) {
+		curs = strlen(str);  }
+	if (ch == 0x152) 					/* insert */
+		insmode = !insmode;
+	if ((ch > ' ') && (ch <= '~')) {	/* if printing char */
+		if (nchars == 0) {				/* if first char */
+			str[0] = '\0';				/* clear entire string */
+			curs = 0;
+			clearf++;
+			}
+		if (curs >= strlen(str))		/* if adding at the end */
+			str[curs+1] = '\0';
+		str[curs] = ch;
+		}
+	if ((ch == '\r') || (ch == '\n')) {	/* enter- quit */
+		cprintf("x");
+		break;  }
+	gotoxy(xpos, ypos);					/* repaint after every op */
+	if (clearf > 0) {					/* may want to clear first */
+		for (x=0; x<len; x++)			/* if str got shorter */
+			cprintf(" ");
+		gotoxy(xpos, ypos);
+		}
+	cprintf("%s",str);
+	gotoxy(xpos+curs, ypos);
+	nchars++;							/* count n chars hit */
+	}
+textbackground(BLACK);
+textcolor(LIGHTGRAY);
+}
+
+/************* BOX -- draw a box in center of screen, clear inside *****/
+box(xcor, ycor, xwide, yhigh)
+int xcor, ycor, xwide, yhigh;
+{
+int x, y;
+unsigned char bord=219;
+clrscr();								/* clear screen first */
+gotoxy(xcor, ycor);						/* do top row */
+for (x=0; x<xwide; x++)
+	fputc(bord, stdout);
+for (y=1; y<(yhigh-1); y++) {			/* do intermed rows */
+	gotoxy(xcor, ycor+y);
+	fputc(bord, stdout);
+	gotoxy(xcor+xwide-1, ycor+y);
+	fputc(bord, stdout);
+	}
+gotoxy(xcor, ycor+yhigh-1);				/* do bottom row */
+for (x=0; x<xwide; x++)
+	fputc(bord, stdout);
+}
+
+/*********** DATESTR -- make a string out of a date *********************/
+datestr(date, ss)
+int date;
+char *ss;       						/* pointer to result string */
+{
+sprintf(ss,"%i/%i/%2i",(date >> 5) & 0xF, date & 0x1F, \
+	((date >> 9) & 0x7F) + 80);
+while (strlen(ss) < 8)
+	strcat(ss, " ");
+}
+
+/********* FCR -- file compare routine ************************************/
+/* call this only if you already know the files are the same length */
+/* provide complete pathnames for files (with device if nec.) */
+/* returns 0 if not= (or if some problem), 1 if = */
+int fcr(file1, file2)
+char *file1, *file2;
+{
+int r =0;								/* return value */
+char c1, c2;
+FILE *f1;
+FILE *f2;
+f1 = fopen(file1, "rb");
+f2 = fopen(file2, "rb");
+if ((f1 == NULL) || (f2 == NULL)) {
+	printf("error- can't open file\n");
+	return 0;  }
+while (!feof(f1)) {						/* loop to compare files */
+	c1 = fgetc(f1);
+	c2 = fgetc(f2);
+	if (c1 != c2) break;
+	}
+if (feof(f1))  r = 1;					/* if you made it thru */
+fclose(f1);
+fclose(f2);
+return r;
+}
+
+/********* FCOPY -- file copy routine ************************************/
+/* provide complete pathnames for files (with device if nec.) */
+/* sets date of destination file to date of source file */
+/* returns 0 if ok, nonzero if some problem */
+int fcopy(file1, file2)
+char *file1, *file2;
+{
+int f1, f2, i;
+unsigned n;
+long sz;
+f1 = open(file1, O_RDONLY | O_BINARY);
+if (f1 < 0) {
+	printf(" error opening source file %s\n", file1);
+	return 1;  }
+f2 = open(file2, O_WRONLY | O_BINARY | O_CREAT | O_TRUNC,0x180);
+if (f2 < 0) {
+	printf("error opening destination file %s\n", file2);
+	close(f1);
+	return 1;  }
+sz = filelength(f1);
+while (sz > 0L) {						/* loop to transfer 1 buffer full */
+	n = BUFSIZE;
+	if (sz < n) n = sz;
+	i = read(f1, buff, n);
+	if (i <= 0) {
+		printf(" read error\n");
+		return 2;  }
+	i = write(f2, buff,n);
+	if ((i == -1) || (i < n)) {
+		printf(" write error\n");
+		return 2;  }
+	sz = sz - n;
+	}
+getftime(f1,&timdat);					/* make date/time of dest file */
+/*printf("%u %u\n",timdat.ft_month,timdat.ft_day);*/
+i = setftime(f2,&timdat);				/* the same as source file */
+/*printf("%i\n",i);*/
+close(f1);
+close(f2);
+return 0;
+}

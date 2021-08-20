@@ -1,0 +1,177 @@
+; ITEST.ASM -- assembly module for install program
+; contains a test for CPU type
+; returns AX=0 if 8086/286, 3 if 386 or better
+; also contains temporary intrr handlers for INT5 & INT7
+; and a setint/unsetint routine
+
+			.MODEL	LARGE,C
+SetIntVect  equ     25h             ;DOS function
+GetIntVect  equ     35h             ;DOS function
+IRQ5		equ		0Dh				;interrupt no for hardware IRQ5
+IRQ7        equ     0Fh             ;interrupt number for hardware IRQ7
+EOI         equ     20h             ;non-specific EOI
+OCR         equ     20h             ;Location of 8259 operational register
+
+			.DATA
+temp		dw		0
+intcnt5		dw		0				;n interrupts in inthand5
+intcnt7		dw		0				;n interrupts in inthand7
+orgseg5		dw		0				;original segment, offset for int5
+orgoff5		dw		0
+orgseg7		dw		0				;original segment, offset for int7
+orgoff7		dw		0
+orgmask		db		0				;PIC mask for 5 & 7
+			public	intcnt5,intcnt7
+
+			.CODE
+			PUBLIC	findcpu
+findcpu		PROC	FAR
+			pushf                   ;save flags
+			push	sp				;first the 8086 test
+			pop		ax				;is 86 if SP decrements before a
+			cmp		sp,ax			;value is pushed
+			jne		bad386			;is 8086
+			pushf					;not 86-- now the 286 test
+			pop		ax				;bit 14 in the flags reg can't be set
+			or		ax,4000h
+			push	ax
+			popf         			;set flags reg
+			pushf					;now read flags
+			pop		ax
+			test	ax,4000h
+			jz		bad386			;if 286
+			mov		ax,3			;if 386
+			jmp		exit
+bad386:     mov		ax,0			;8086/286
+exit:		popf
+			ret
+findcpu		ENDP
+
+;********** ISETINTS -- set up temp. handlers for INT5 & INT7 ********
+; also enables both ints in the PIC
+; but does not enable the intrr in the device
+			public	isetints
+isetints	PROC	FAR
+			push	ds				;get old int5 vector
+			mov     ah,GetIntVect   ;dos command code => AH
+			mov     al,IRQ5         ;interrupt number => AL
+			int     21h				;get current vector (in ES:BX) and
+			pop		ds
+			mov     orgoff5,bx	    ; save it for
+			mov     orgseg5,es	    ; later return
+			push	ds				;set new int5 vector (DS:DX)
+			mov		dx,offset inthand5
+			mov     ah,SetIntVect   ;dos command code => AH
+			mov     al,IRQ5         ;interrupt number => AL
+			int     21h             ;make it so number one
+; set up temorary IRQ7 handler
+			mov     ah,GetIntVect       ;get old int7 vector
+			mov     al,IRQ7             ;interrupt number => AL
+			int     21h					;get current vector (in ES:BX) and
+			pop		ds
+			mov     orgoff7,bx	        ; save it for
+			mov     orgseg7,es	        ; later return
+			push	ds					;set new int7 vector (DS:DX)
+			mov		dx,offset inthand7
+			mov     ah,SetIntVect       ;dos command code => AH
+			mov     al,IRQ7             ;interrupt number => AL
+			int     21h                 ;make it so number one
+			pop		ds
+;unmask irq7 and irq5 in PIC
+			IN    	AL,21h        		; get contents
+			mov   	orgmask,al   		; save old contents
+			AND   	AL, not 0A0H   		; set off the bit for IRQ7 & 5
+			OUT   	21h, AL        		; send it to the controller
+			ret
+isetints	ENDP
+
+;enable interrupt in the device
+;			mov		dx,devcode			;enable intrrs
+			add		dx,2				;37A
+			mov		al,10h
+			out		dx,al
+
+;			mov		dx,devcode			;disable intrr in device
+			add		dx,2
+			mov		al,0
+			out		dx,al
+
+
+;********** IUNSETINTS -- restore intrr routines to prev vectors *******
+; also re-masks in the PIC
+; but does not mess with intrr-enable in the device
+			public	iunsetints
+iunsetints	PROC	FAR
+; mask irq5 & irq7 in the PIC
+			MOV   	DX, 21H       	;address of the PIC
+			in		al,dx			;get present contents
+			mov		ah,orgmask
+			and		ah,0A0h			;get only 2 bits from original mask
+			or		al,ah
+			OUT  	DX, AL        	;set it
+; restore IRQ5 and IRQ7 vectors
+			push	ds				;restore old int5 vector
+			mov		dx,orgoff5	    ;get the original vector
+			mov		ax,orgseg5
+			mov     ds,ax
+			mov     ah,SetIntVect   ;dos command code => AH
+			mov     al,IRQ5         ;interrupt number => AL
+			int     21h		        ;set original vector
+			pop		ds
+			push	ds				;restore old int7 vector
+			mov		dx,orgoff7	    ;get the original vector
+			mov		ax,orgseg7
+			mov     ds,ax
+			mov     ah,SetIntVect   ;dos command code => AH
+			mov     al,IRQ7         ;interrupt number => AL
+			int     21h		        ;set original vector
+			pop		ds
+			ret
+iunsetints	ENDP
+
+; Device interrupt  routine for testing INT5
+inthand5   PROC FAR
+		;--- save machine state ---
+		push	ax					;note: only AX,DX pushed
+		push	dx
+		push	ds
+		;--- load DS with data segment for this block of data ---
+		mov		ax,DGROUP
+		mov		ds,ax
+		;-- incr the interrupt count
+		inc		intcnt5
+int5ex:
+		;--- acknowledge the interrupt ---
+		mov     al,EOI             	;eoi to interrupt controller
+		out     OCR,al          ;
+		;--- restore machine state ---
+		pop		ds
+		pop		dx
+		pop		ax
+		iret
+inthand5 endp
+
+; Device interrupt  routine for testing INT7
+inthand7   PROC FAR
+		;--- save machine state ---
+		push	ax
+		push	dx
+		push    ds
+		;--- load DS with data segment for this block of data ---
+		mov		ax,DGROUP
+		mov		ds,ax
+		;-- incr the interrupt count
+		inc		intcnt7
+int7ex:
+		;--- acknowledge the interrupt ---
+		mov     al,EOI             	;eoi to interrupt controller
+		out     OCR,al          ;
+		;--- restore machine state ---
+		pop    	ds       			;restore registers
+		pop		dx
+		pop		ax
+		iret
+inthand7 endp
+
+
+			END

@@ -1,0 +1,34 @@
+HKCR
+{
+	QWQNG.QNG.1 = s 'ComScire QNG Control 1.0'
+	{
+		CLSID = s '{D7A1BFCF-9A30-45AF-A5E4-2CAF0A344938}'
+	}
+	QWQNG.QNG = s 'ComScire QNG Control 1.0'
+	{
+		CLSID = s '{D7A1BFCF-9A30-45AF-A5E4-2CAF0A344938}'
+		CurVer = s 'QWQNG.QNG.1'
+	}
+	NoRemove CLSID
+	{
+		ForceRemove {D7A1BFCF-9A30-45AF-A5E4-2CAF0A344938} = s 'ComScire QNG Control 1.0'
+		{
+			ProgID = s 'QWQNG.QNG.1'
+			VersionIndependentProgID = s 'QWQNG.QNG'
+			ForceRemove 'Programmable'
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Apartment'
+			}
+			val AppID = s '%APPID%'
+			ForceRemove 'Control'
+			ForceRemove 'ToolboxBitmap32' = s '%MODULE%, 102'
+			'MiscStatus' = s '0'
+			{
+			    '1' = s '%OLEMISC%'
+			}
+			'TypeLib' = s '{F6157809-110A-49C1-98D1-D76C839B7B78}'
+			'Version' = s '1.0'
+		}
+	}
+}

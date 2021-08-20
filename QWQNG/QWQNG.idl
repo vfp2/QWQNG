@@ -1,0 +1,44 @@
+// QWQNG.idl : IDL source for QWQNG
+//
+
+// This file will be processed by the MIDL tool to
+// produce the type library (QWQNG.tlb) and marshalling code.
+
+#include "olectl.h"
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	object,
+	uuid(49747D38-E3ED-4CA8-BD48-F283D0B468FB),
+	dual,
+	nonextensible,
+	helpstring("IQNG Interface"),
+	pointer_default(unique)
+]
+interface IQNG : IDispatch{
+	[propget, id(1), helpstring("property RandInt32")] HRESULT RandInt32([out, retval] LONG* pVal);
+	[propget, id(2), helpstring("property RandUniform")] HRESULT RandUniform([out, retval] DOUBLE* pVal);
+	[propget, id(3), helpstring("property RandNormal")] HRESULT RandNormal([out, retval] DOUBLE* pVal);
+	[propget, id(4), helpstring("property RandBytes")] HRESULT RandBytes([in] LONG Length, [out, retval] VARIANT* pVal);
+	[id(5), helpstring("method Clear")] HRESULT Clear(void);
+	[id(6), helpstring("method Reset")] HRESULT Reset(void);
+};
+
+[
+	uuid(F6157809-110A-49C1-98D1-D76C839B7B78),
+	version(1.0),
+	helpstring("ComScire QNG Control Library 1.0")
+]
+library QWQNG
+{
+	importlib("stdole2.tlb");
+	[
+		uuid(D7A1BFCF-9A30-45AF-A5E4-2CAF0A344938),
+		helpstring("ComScire QNG Control 1.0")
+	]
+	coclass QNG
+	{
+		[default] interface IQNG;
+	};
+};

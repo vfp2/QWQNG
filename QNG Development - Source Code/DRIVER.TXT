@@ -1,0 +1,484 @@
+     QNG user documentation
+
+1. INTRODUCTION TO THE QNG DEVICE
+
+2. INSTALLATION
+
+Hardware installation
+
+The QNG device may be plugged into any parallel printer port. 
+The DB-25 connector on the device mates with the DB-25 at the end
+of the standard printer cable.  No separate power connection is
+required; the device derives its power from the printer interface
+hardware.
+
+The driver software will auto-detect which parallel port is
+connected to the QNG device, or you may direct it to use a given
+port address and interrupt number.  
+
+In order for the auto-detect logic to operate correctly, the QNG
+device must be connected to one of the 3 standard printer ports
+(3BC, 378, or 278).  In addition, the device must be installed
+and operating at the time the computer is booted.  If the driver
+does not find the device on any of the 3 standard ports, it will
+not load.
+
+If you manually select the port address, you may use any valid
+port address.  The device need not be installed at the time the
+computer is booted.
+
+The system software will assign the parallel ports in order to
+the printers LPT1 through LPT3.  To avoid possible conflicts with
+other software systems such as Windows, it is best to use a
+higher port number for the QNG device: 278 if possible, and then
+378.
+
+The QNG device will operate with or without interrupts.  Higher
+speed performance will be obtained if interrupts are used.  If no
+interrupt is detected on bootup, or if you direct the driver to
+use interrupt 0, the driver will operate in polling (non-
+interrupt) mode.
+
+The standard printer interrupts are INT 5 and INT 7.  Since most
+DOS software does not use printer interrupts, your parallel
+interface cards may be set to either INT 5 or INT 7, or to no
+interrupt.  The rules to follow when setting the QNG interrupt
+are:
+
+     1. The QNG device may not share an interrupt with a printer,
+     while two or more printers may sometimes share an interrupt.
+
+     2. The QNG driver is able to use any interrupt between 1 and
+     7, if you have an interface card which supports it.  A good
+     choice would be INT 3 or INT 4, usually used by the serial
+     communication ports.
+
+Software Installation
+
+A diskette is provided which contains the following software:
+
+     READ.ME                  A text file containing up to date
+                              device information
+     QNGDRV0.EXE              8086/286 version of device driver
+     QNGDRV3.EXE              386/486/Pentium version  
+     QNGDRV0.COM              COM version of device driver, for
+                              use with DOS versions below 5.0
+     QNGTEST.EXE              Test and diagnostic utility
+     INSTALL.EXE              Installation utility
+     DEMO.C
+     DEMO.EXE                 A short demonstration program 
+                              (source code in Borland C)
+
+To install the software, put the diskette in the appropriate
+floppy disk drive and type
+
+     A:INSTALL  or
+     B:INSTALL
+
+The installation program will copy all software to the current
+hard drive; normally this will be drive C.  It will ask you what
+subdirectory to use; if you do not specify one, the default will
+be \QNGDRV.  The specified subdirectory will be created if it
+does not already exist.
+
+The program will also copy the QNG device driver, QNGDRV, to the
+root directory of your hard drive.  If you are running DOS 5.0 or
+later, it will install an .EXE version of the driver. 
+Otherwise, it will install the .COM version.
+
+If your CPU is a 386 or higher, the program will install the
+QNGDRV3 version.  This version is considerably faster because it
+uses 386 instructions.
+
+The installation program will show you a list of the parallel
+ports currently installed on your computer.  If it is possible to
+identify which interrupt each port is using, the program will
+also give you this information.
+
+Finally, the installation program will add the following line to
+your CONFIG.SYS file on the root directory:
+
+     DEVICE=QNGDRV0.EXE  or
+     DEVICE=QNGDRV3.EXE  or
+     DEVICE=QNGDRV0.COM
+
+This will cause the device driver to load each time the computer
+is booted up.
+
+If you choose, you may tell the installation program to skip the
+modification of the CONFIG.SYS file.  In this case, you must add
+this line to the file yourself.
+
+You may also direct the driver to bypass its auto-detection logic
+and attach the device to a given port and interrupt number by
+including this information in the DEVICE command.  The format is:
+
+     DEVICE=QNGDRVx.EXE D=378 I=5
+     DEVICE=QNGDRVx.EXE D=378 I=0       (if no interrupt is used)
+
+If either the D or I parameter is specified, both D and I must be
+specified.  D may be any valid port address between 0 and 3FC
+(hex); I may be any valid interrupt number between 1 and 7.
+
+After the installation is complete, you must re-boot the computer
+before the driver may be used.
+
+
+
+3. SOFTWARE INTERFACE TO THE QNG DEVICE
+
+Software talks to the QNG device through a DOS device driver. 
+The name of the device is "QNG", and it may be opened and read or
+written to the same as a standard device driver or file.  The
+standard procedure would be:
+
+     Open the device "QNG" for reading, in text mode
+     Read as many random numbers as you want (see formats below)
+     Close the device
+
+
+
+Modes
+
+The QNG driver supports the following modes of operation:
+
+          mode      setup code     format
+     Uniform 16-bit      04   Returns uniformly distributed
+                              floating point numbers between 0
+                              and 1  (1.0 is not included in the
+                              range).  Each number is represented
+                              by 6 digits; not all 6 digits are
+                              signigicant because the values are
+                              derived from 16-bit integers.  Each
+                              value is preceded by a decimal
+                              point and followed by a newline
+                              character.
+
+     Uniform 32-bit      08   Returns uniformly distributed
+                              numbers as in mode 04, but the
+                              values are derived from 32 bit
+                              integers.  9 digits are returned
+                              for each value.
+
+     Normal, signed      88   Returns normally distributed
+                              numbers based on 32 bit integers. 
+                              The range is arbitrarily limited to
+                              +/-8 standard deviations; this
+                              limit would not be reached in
+                              normal use.  Each value is
+                              followed by a newline character.
+
+     Normal, unsigned    98   Returns normally distributed values
+                              between 0 and +8.0.
+
+     Basic hex           01   Returns a stream of ASCII hex
+                              digits, each representing a 4-bit
+                              random integer.  In each 4-bit
+                              group, the most significant bit is
+                              the latest in time.  No newline
+                              characters or decimal points are
+                              appended.
+
+
+
+Mode Setting
+
+The driver mode is set by writing a mode command to it.  The mode
+command consists of the letter 'M', the setup code as shown
+above, and a newline.  The mode change will not take effect until
+the newline character is received.
+
+The default mode is signed normal mode; this will be used if no
+mode setting command is issued.
+
+There are several ways to send a mode command to the driver:
+
+     1. In languages that support IOCTL commands, this is the
+     easiest way because it does not affect the normal read
+     channel.  IOCTL command 3 is used to write to the device
+     driver.  A typical IOCTL command in C would be:
+
+          ioctl(handle, 3, "M98\n", 4);
+
+     2. The driver may be opened for both reading and writing;
+     the mode command may be sent as a text string to the device. 
+     Note that most I/O systems require that a REWIND or SEEK
+     operation be done when changing mode between writing and
+     reading.  These commands have no effect on the QNG driver.
+
+     3. Close the device; open it for writing; write the command
+     string; close it; and re-open it for reading.
+
+     A special precaution is needed in this case.  The driver
+     normally resets its mode to 88 whenever it is opened.  To
+     keep this from overriding your mode setting, add 8000 to
+     your mode setting.  This gives you a "hard" mode setting
+     which will not be reset when the device is opened.  For
+     example (in C):
+
+          fputs("M8098\n", file);
+
+
+
+Error Returns
+
+ERROR 1
+
+In case of an internal error (for example, the QNG device
+becoming disconnected or failing to operate during data reading)
+the driver software will return this text string instead of a
+numeric result.  Your program should therefore include a test for
+alphabetic return data.
+
+
+ERROR 2
+
+The QNG driver also runs a continuous test on all bit data to
+ensure that it maintains acceptable statistical characteristics. 
+This test is applied to all incoming data, whether it is being
+used or not.  Two tests are run on each block of 100,000 bits:
+
+     1. A 1/0 balance test: if the 1/0 balance exceeds plus or
+     minus 474 (3 standard deviations) for two blocks in a row,
+     an error message will be returned.
+
+     2. A serial correlation test: if the fourth order serial
+     correlation exceeds plus or minus 474 (3 standard
+     deviations) for two blocks in a row, an error message will
+     be returned.
+
+This error message would be caused by stuck bits or other
+internal conditions which may not affect the overall data rate.
+
+
+
+Overruns
+
+The driver reads data from the QNG device at a fixed rate of
+10,000 or 20,000 bits per second.  Data are put into a buffer by
+the interrupt handler.  If the user program requests data at a
+lower rate than this, the extra samples are discarded.  No error
+message is given.
+
+If the user program requests data at a higher rate, the driver
+will cause the program to wait until the data becomes available.
+
+
+
+Loading the Driver
+
+The driver is loaded each time the computer is booted up.  During
+the initialization phase, it does a number of tests to make sure
+that the device is functioning properly.  These tests include:
+
+     auto-detect of the device code and interrupt being used
+     measuring the data rate from the device
+     testing that the bit serial correlation is within limits
+     Testing whether the interrupt is on the rising or falling
+          edge of the clock
+
+The auto-detect logic may be overridden as described above, if
+you know which port you plan to use for the QNG device.
+
+When the driver software recognizes that a printer port is
+connected to a QNG device, it removes this printer port from the
+DOS list of installed printers.  DOS will no longer recognize
+this port as a printer, and you will not be able to send print
+output to it.  However, this process can be accident prone.  To
+minimize the chance of difficulty, we recommend that you connect
+the QNG to a printer port which would normally be LPT3, thus
+leaving LPT1 and LPT2 unaffected.  This means using the device
+code 278 (first choice) or 378.
+
+
+
+4. TESTING THE QNG DEVICE
+
+The software diskette includes a test program, QNGTEST.EXE, which
+runs a thorough test of the device.  To run the test program,
+type 
+
+     QNGTEST
+
+The program has 2 phases.  Phase 1 tests the basic operating
+configuration of the device, including:
+
+     Data rate
+     Which interrupts are in use, if any
+     Whether the device is activating more than 1 interrupt
+     Whether the interrupt occurs on the rising or falling edge
+          of the clock (this affects the amount of time available
+          to process an interrupt)
+     The amount of time required to process the system clock tick
+          (this can cause loss of data from the QNG device) 
+
+The phase 2 tests include:
+
+     One/zero balance of the output data
+     Bit serial correlation of the output data
+          (first order through eighth order)
+     "Monkey" tests (see reference 1)
+     Entropy tests (see reference 2)
+     Graphic display of the number distribution (a normal
+          distribution calculated from the data)
+     Mean, standard deviation and kurtosis of the normal
+          distribution
+
+The phase 1 tests require about 5 seconds.  The phase 2 tests may
+be continued as long as desired.  A continuous display is
+provided of the test outputs.
+
+
+
+Phase 1 Display
+
+Phase 1 provides the following information:
+
+1. If the driver is currently loaded, the port address and
+interrupt number which it is using.
+
+2. The port addresses of all parallel port interfaces which are
+installed in the system.  The phase 1 tests will be run on all of
+these interfaces at the same time, in order to detect any
+problems involving interactions between ports.
+
+3. Using polling mode only (no interrupts enabled), the rate at
+which 4-bit nibbles are received from the device.  This should be
+close to 2500 or 5000.
+
+4. Using polling mode, the rate at which bits are received from
+the device.  This will be 4 times the nibble rate.
+
+5. A simple serial correlation test measuring the serial
+correlation between adjacent bits.  The test is run for 1/4
+second and a chi-squared value is computed.  This value must be
+between .00016 and 6.635 for the device to pass the test.  The
+test is repeated 5 times.
+
+6. An interrupt analysis is performed to determine which ports
+containing a QNG device are connected to interrupts.  If a port
+is connected to more than one interrupt, or to no interrupt, this
+information will be shown.  
+
+The program will also detect whether more than one device is
+connected to the same interrupt.  Although the driver software
+does not support more than one QNG device at a time, the test
+program will test for multiple devices.
+
+For ports not connected to a QNG device, interrupt information
+cannot always be obtained and is not reported.
+
+7. The program reports whether the interrupt is triggered by the
+rising or falling edge of the clock pulse.  The QNG device will
+work in either situation; but if the interrupt is triggered by
+the falling edge, the CPU will have half as much time to respond
+to it.
+
+8. A pass/fail message indicating whether the QNG device passed
+the required tests.
+
+9. The amount of time required by the system clock tick
+processing.  This can interfere with interrupts from the QNG
+device and cause loss of data in some cases.  If such
+interference is likely, a message will be shown.  However, if
+loss of data should occur, the remaining data will still be
+valid.
+
+
+Phase 2 Display
+
+The Phase 2 display is continuously updated during the test,
+which may be run as long as desired.  The phase 2 display
+provides the following information:
+
+
+1. The number of bits processed since the test began, shown in
+millions.
+
+
+2. 1/0 Balance.  This is the (number of ones) - (number of zeros)
+since the test started.  It is expressed in ppm or in
+standardized values. Pressing "N" will switch to the ppm display;
+pressing "S" will switch to the standardized display.
+
+Since data is received from the QNG device in 4-bit nibbles, the
+1/0 balance is calculated for each of the 4 separate bits of the
+4-bit nibble as well as for the entire bit stream.
+
+If you are using a color display, the values will be shown in
+color, as follows:
+
+     color     S.D. range          probability of occurrence
+     red       over 2.576          2.5 %
+     yellow    1.645 to 2.576      10 %
+     green     .1257 to 1.645      75 %
+     yellow    .0125 to 1.257      10 %
+     red       below .0125         2.5 %
+
+
+3. Bit serial correlations.  The program calculates first order
+through eighth order serial correlations for the random bit
+stream.  These values are shown in either ppm or standardized
+format, as above.  The colors used are the same as those for the
+1/0 balance.
+
+
+4. Normal Distribution.  The program computes normally
+distributed values from the raw bit stream.  The mean, standard
+deviation, kurtosis, and number of values for this distribution
+are shown.  If the raw bit stream deviates from a uniform
+distribution, the defect will be seen in these values.
+
+
+5. "Monkey" tests.  The program continuously runs tests using the
+"monkey test" algorithm of Marsaglia and Zaman (ref. 1).  The
+test chosen is the OQSO test using the lower 5 bits of each 16-
+bit grouping of raw data.  The current working value is shown; it
+starts at 1,048,576 and should reach a mean of 141,909 at the end
+of each test.
+
+The progress indicator shows the number of tests already
+completed (integer part) and the approximate fraction of the
+current test which has been completed (fractional part).
+
+The program also shows the mean of the standardized scores from
+all tests completed so far, and the individual standardized
+scores of the last 20 tests run.
+
+
+6. Entropy Tests.  The program continuously runs tests using the
+algorithm based on entropy by Maurer (ref. 2).  A 14-bit word is
+used, taken from the lower 14 bits of each 16-bit grouping.  The
+test is run for 1,048,576 samples and the resulting entropy is
+computed.  This entropy value is then converted into a
+standardized score.
+
+The program shows the mean of the standardized test scores for
+the tests completed so far, as well as the mean of the
+standardized entropy values.  It also shows the standardized
+entropy values for the last 20 tests completed.
+
+The progress indicator is calculated the same as in the monkey
+tests.
+
+
+7. Normal distribution display.  By pressing "D", you can view
+the actual distribution of the normalized values computed.  Ticks
+are drawn every standard deviation, with -7 at the left and 0 at
+the right.
+
+
+References
+
+1. Marsaglia, G. and A. Zaman, "Monkey Tests for Random Number
+Generators", Computers Math. Applic. Vol 26, No 9, pp 1-10, 1993.
+
+2. Maurer, U., "A Universal Statistical Test for Random Bit
+Generators", 
+
+
+
+5. Specifications
+
+
+
